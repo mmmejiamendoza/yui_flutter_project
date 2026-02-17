@@ -29,22 +29,23 @@ class YuiInterface extends StatefulWidget {
 class _YuiInterfaceState extends State<YuiInterface> {
   // --- 1. THE LOGIC ---
   // IMPORTANT: Make sure you put your key here!
-  final String apiKey = 'PASTE_YOUR_KEY_HERE'; 
+  final String apiKey = 'AIzaSyBiAe7wDm9s5k8WELT-bkWD1FnP4EpEpbU'; 
   
   late final GenerativeModel model;
   late final ChatSession chat;
   final TextEditingController _controller = TextEditingController();
   List<Map<String, String>> messages = [];
 
-  @override
+@override
   void initState() {
     super.initState();
+    // We are using 'gemini-1.5-flash-8b' as it is highly compatible
     model = GenerativeModel(
-      model: 'gemini-1.5-flash',
+      model: 'gemini-1.5-flash-8b', 
       apiKey: apiKey,
       systemInstruction: Content.system(
         "You are Yui from Sword Art Online. You refer to the user as 'Papa'. "
-        "You are cheerful, digital, and very helpful. "
+        "You are cheerful, digital, and very helpful."
       ),
     );
     chat = model.startChat();
