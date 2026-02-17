@@ -27,8 +27,6 @@ class YuiInterface extends StatefulWidget {
 }
 
 class _YuiInterfaceState extends State<YuiInterface> {
-  // --- 1. THE LOGIC ---
-  // IMPORTANT: Make sure you put your key here!
   final String apiKey = 'AIzaSyCTWzmz3QL6YsE-dDo5_X3Tvc7hL0NgbSQ'; 
   
   late final GenerativeModel model;
@@ -36,37 +34,41 @@ class _YuiInterfaceState extends State<YuiInterface> {
   final TextEditingController _controller = TextEditingController();
   List<Map<String, String>> messages = [];
 
-@override
-  void initState() {
-    super.initState();
-    // We are using 'gemini-1.5-flash-8b' as it is highly compatible
-    model = GenerativeModel(
-      model: 'gemini-1.5-flash-8b', 
-      apiKey: apiKey,
-      systemInstruction: Content.system(
-        "You are Yui from Sword Art Online. You refer to the user as 'Papa'. "
-        "You are cheerful, digital, and very helpful."
-      ),
-    );
-    chat = model.startChat();
-  }
+  @override
+void initState() {
+  super.initState();
+  
+  // By putting 'models/' in front, we are using the absolute path.
+  // This is the most stable way to call the model.
+  model = GenerativeModel(
+    model: 'gemini-2.5-flash', 
+    apiKey: apiKey,
+  );
+
+  // We are going to start the chat WITHOUT system instructions first
+  // just to prove the connection works.
+  chat = model.startChat();
+}
 
   void _sendMessage() async {
-    final text = _controller.text;
-    if (text.isEmpty) return;
+  final text = _controller.text;
+  if (text.isEmpty) return;
+  
+  setState(() => messages.add({"role": "user", "text": text}));
+  _controller.clear();
+
+  try {
+    // We call generateContent directly on the model.
+    // This is the "Emergency Exit" for when ChatSessions fail.
+    final content = [Content.text("You are Yui. Answer as her: $text")];
+    final response = await model.generateContent(content);
     
-    setState(() => messages.add({"role": "user", "text": text}));
-    _controller.clear();
-
-    try {
-      final response = await chat.sendMessage(Content.text(text));
-      setState(() => messages.add({"role": "yui", "text": response.text ?? "..."}));
-    } catch (e) {
-      setState(() => messages.add({"role": "yui", "text": "Error: $e"}));
-    }
+    setState(() => messages.add({"role": "yui", "text": response.text ?? "..."}));
+  } catch (e) {
+    setState(() => messages.add({"role": "yui", "text": "Error: $e"}));
   }
+}
 
-  // --- 2. THE UI ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -116,11 +118,9 @@ class _YuiInterfaceState extends State<YuiInterface> {
                         padding: const EdgeInsets.all(12),
                         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
                         decoration: BoxDecoration(
-                          color: isYui 
-                              ? Colors.white.withValues(alpha: 0.1) 
-                              : Colors.pinkAccent.withValues(alpha: 0.2),
+                          color: isYui ? Colors.white.withAlpha(30) : Colors.pinkAccent.withAlpha(50),
                           borderRadius: BorderRadius.circular(15),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                          border: Border.all(color: Colors.white.withAlpha(30)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,7 +148,7 @@ class _YuiInterfaceState extends State<YuiInterface> {
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 30),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.4),
+                  color: Colors.black.withAlpha(100),
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
                 ),
                 child: Row(
@@ -178,4 +178,4 @@ class _YuiInterfaceState extends State<YuiInterface> {
       ),
     );
   }
-} // This final bracket was the one missing!
+}
