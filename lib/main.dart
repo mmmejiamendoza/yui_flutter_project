@@ -29,7 +29,7 @@ class YuiInterface extends StatefulWidget {
 class _YuiInterfaceState extends State<YuiInterface> {
   // --- 1. THE LOGIC ---
   // IMPORTANT: Make sure you put your key here!
-  final String apiKey = 'AIzaSyBiAe7wDm9s5k8WELT-bkWD1FnP4EpEpbU'; 
+  final String apiKey = 'AIzaSyCTWzmz3QL6YsE-dDo5_X3Tvc7hL0NgbSQ'; 
   
   late final GenerativeModel model;
   late final ChatSession chat;
