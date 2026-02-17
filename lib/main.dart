@@ -1,122 +1,180 @@
 import 'package:flutter/material.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 
-void main() {
-  runApp(const MyApp());
-}
+void main() => runApp(const YuiApp());
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class YuiApp extends StatelessWidget {
+  const YuiApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.pinkAccent),
+        useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const YuiInterface(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class YuiInterface extends StatefulWidget {
+  const YuiInterface({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<YuiInterface> createState() => _YuiInterfaceState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _YuiInterfaceState extends State<YuiInterface> {
+  // --- 1. THE LOGIC ---
+  // IMPORTANT: Make sure you put your key here!
+  final String apiKey = 'PASTE_YOUR_KEY_HERE'; 
+  
+  late final GenerativeModel model;
+  late final ChatSession chat;
+  final TextEditingController _controller = TextEditingController();
+  List<Map<String, String>> messages = [];
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  @override
+  void initState() {
+    super.initState();
+    model = GenerativeModel(
+      model: 'gemini-1.5-flash',
+      apiKey: apiKey,
+      systemInstruction: Content.system(
+        "You are Yui from Sword Art Online. You refer to the user as 'Papa'. "
+        "You are cheerful, digital, and very helpful. "
+      ),
+    );
+    chat = model.startChat();
   }
 
+  void _sendMessage() async {
+    final text = _controller.text;
+    if (text.isEmpty) return;
+    
+    setState(() => messages.add({"role": "user", "text": text}));
+    _controller.clear();
+
+    try {
+      final response = await chat.sendMessage(Content.text(text));
+      setState(() => messages.add({"role": "yui", "text": response.text ?? "..."}));
+    } catch (e) {
+      setState(() => messages.add({"role": "yui", "text": "Error: $e"}));
+    }
+  }
+
+  // --- 2. THE UI ---
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text("Yui MHCP v1.0", 
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent, 
+        elevation: 0,
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
+              ),
             ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+          ),
+          Positioned(
+            bottom: 100,
+            right: -20,
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset(
+                'assets/yui.png',
+                height: 300,
+                errorBuilder: (context, error, stackTrace) => const SizedBox(),
+              ),
+            ),
+          ),
+          Column(
+            children: [
+              const SizedBox(height: kToolbarHeight + 30),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: messages.length,
+                  itemBuilder: (context, i) {
+                    bool isYui = messages[i]['role'] == 'yui';
+                    return Align(
+                      alignment: isYui ? Alignment.centerLeft : Alignment.centerRight,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        padding: const EdgeInsets.all(12),
+                        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+                        decoration: BoxDecoration(
+                          color: isYui 
+                              ? Colors.white.withValues(alpha: 0.1) 
+                              : Colors.pinkAccent.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isYui ? "Yui" : "Papa",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isYui ? Colors.cyanAccent : Colors.pink[200],
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              messages[i]['text']!,
+                              style: const TextStyle(color: Colors.white, fontSize: 16),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 30),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: const InputDecoration(
+                          hintText: "Speak to Yui...",
+                          hintStyle: TextStyle(color: Colors.white54),
+                          border: InputBorder.none,
+                        ),
+                        onSubmitted: (_) => _sendMessage(),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.send, color: Colors.pinkAccent),
+                      onPressed: _sendMessage,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
-}
+} // This final bracket was the one missing!
