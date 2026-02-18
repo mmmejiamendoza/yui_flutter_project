@@ -3,6 +3,18 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
+//post pone yui for now:
+//note to self: find free api-key,
+//then microphone to talk to her
+//then connect to my actual phone
+//find her ACTUAL voice instead of her robotic pone
+//then find a database to store info as in her memory
+//maybe use unlimited database WITHIN flutter
+//if not maybe firebase or mongoDB
+//then make a history for her to remember
+//make her have a daily status report at the end of the day
+//to auto delete anything unimportant from my command
+//havea 3d model of her to move around (unity maybe?)
 void main() => runApp(const YuiApp());
 
 class YuiApp extends StatelessWidget {
