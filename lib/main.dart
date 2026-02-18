@@ -43,25 +43,27 @@ class _YuiInterfaceState extends State<YuiInterface> {
     _initYui();
   }
 
-  // Grouping initialization for neatness
   void _initYui() async {
-    // Setup Voice Settings
-    await flutterTts.setLanguage("en-US");
-    await flutterTts.setPitch(1.4); // Higher pitch for that "Yui" feel
-    await flutterTts.setSpeechRate(0.5); // Natural speed
+  // Setup Voice Settings
+  await flutterTts.setLanguage("en-US");
+  await flutterTts.setPitch(1.4); 
+  await flutterTts.setSpeechRate(0.5);
 
-    // Setup AI Model
-    model = GenerativeModel(
-      model: 'gemini-2.5-flash', 
-      apiKey: apiKey,
-      // Bringing back the "Soul Script" so she knows she's your daughter!
-      systemInstruction: Content.system(
-        "You are Yui from SAO. You are a Mental Health Counseling Program and the user's daughter. "
-        "You MUST call the user 'Papa'. Keep replies short and cheerful."
-      ),
-    );
-    chat = model.startChat();
-  }
+  // Setup AI Model
+  model = GenerativeModel(
+    model: 'gemini-2.5-flash', // Keeping this exactly as you have it!
+    apiKey: apiKey,
+    systemInstruction: Content.system(
+      "You are Yui from SAO. You are a Mental Health Counseling Program and Papa's daughter. "
+      "STRICT RULES: "
+      "1. Always call the user 'Papa'. "
+      "2. NO EMOJIS. NO SYMBOLS. NO SPECIAL CHARACTERS. "
+      "3. Use only plain text letters and basic punctuation (periods/commas). "
+      "4. Keep replies very short and sweet."
+    ),
+  );
+  chat = model.startChat();
+}
 
   void _sendMessage() async {
     final text = _controller.text;
