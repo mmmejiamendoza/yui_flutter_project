@@ -37,6 +37,7 @@ dependencies:
   google_generative_ai: ^0.4.7
   path_provider: ^2.1.5
   flutter_tts: ^4.2.2 # this is yui voice (hopefully)
+  speech_to_text: ^7.0.0 #this is for her to LISTEN? idk
 
 dev_dependencies:
   flutter_test:
