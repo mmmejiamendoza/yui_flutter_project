@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:flutter_tts/flutter_tts.dart'; // 1. Import TTS
 
 void main() => runApp(const YuiApp());
 
@@ -31,43 +32,57 @@ class _YuiInterfaceState extends State<YuiInterface> {
   
   late final GenerativeModel model;
   late final ChatSession chat;
+  final FlutterTts flutterTts = FlutterTts(); // 2. Initialize TTS Engine
+  
   final TextEditingController _controller = TextEditingController();
   List<Map<String, String>> messages = [];
 
   @override
-void initState() {
-  super.initState();
-  
-  // By putting 'models/' in front, we are using the absolute path.
-  // This is the most stable way to call the model.
-  model = GenerativeModel(
-    model: 'gemini-2.5-flash', 
-    apiKey: apiKey,
-  );
+  void initState() {
+    super.initState();
+    _initYui();
+  }
 
-  // We are going to start the chat WITHOUT system instructions first
-  // just to prove the connection works.
-  chat = model.startChat();
-}
+  // Grouping initialization for neatness
+  void _initYui() async {
+    // Setup Voice Settings
+    await flutterTts.setLanguage("en-US");
+    await flutterTts.setPitch(1.4); // Higher pitch for that "Yui" feel
+    await flutterTts.setSpeechRate(0.5); // Natural speed
+
+    // Setup AI Model
+    model = GenerativeModel(
+      model: 'gemini-2.5-flash', 
+      apiKey: apiKey,
+      // Bringing back the "Soul Script" so she knows she's your daughter!
+      systemInstruction: Content.system(
+        "You are Yui from SAO. You are a Mental Health Counseling Program and the user's daughter. "
+        "You MUST call the user 'Papa'. Keep replies short and cheerful."
+      ),
+    );
+    chat = model.startChat();
+  }
 
   void _sendMessage() async {
-  final text = _controller.text;
-  if (text.isEmpty) return;
-  
-  setState(() => messages.add({"role": "user", "text": text}));
-  _controller.clear();
-
-  try {
-    // We call generateContent directly on the model.
-    // This is the "Emergency Exit" for when ChatSessions fail.
-    final content = [Content.text("You are Yui. Answer as her: $text")];
-    final response = await model.generateContent(content);
+    final text = _controller.text;
+    if (text.isEmpty) return;
     
-    setState(() => messages.add({"role": "yui", "text": response.text ?? "..."}));
-  } catch (e) {
-    setState(() => messages.add({"role": "yui", "text": "Error: $e"}));
+    setState(() => messages.add({"role": "user", "text": text}));
+    _controller.clear();
+
+    try {
+      final response = await chat.sendMessage(Content.text(text));
+      final yuiReply = response.text ?? "...";
+
+      setState(() => messages.add({"role": "yui", "text": yuiReply}));
+
+      // 3. TRIGGER THE VOICE
+      await flutterTts.speak(yuiReply);
+      
+    } catch (e) {
+      setState(() => messages.add({"role": "yui", "text": "Error: $e"}));
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -78,9 +93,11 @@ void initState() {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent, 
         elevation: 0,
+        centerTitle: true,
       ),
       body: Stack(
         children: [
+          // Background Gradient
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -90,6 +107,7 @@ void initState() {
               ),
             ),
           ),
+          // Background Image (Yui)
           Positioned(
             bottom: 100,
             right: -20,
@@ -145,6 +163,7 @@ void initState() {
                   },
                 ),
               ),
+              // Input Area
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 30),
                 decoration: BoxDecoration(
