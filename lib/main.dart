@@ -22,7 +22,8 @@ class YuiInterface extends StatefulWidget {
   @override
   State<YuiInterface> createState() => _YuiInterfaceState();
 }
-
+// CHANGE API KEY SINCE IT WANTS TO CHRAGE:
+// API key is from google ai studio right now
 class _YuiInterfaceState extends State<YuiInterface> {
   final String apiKey = 'AIzaSyCTWzmz3QL6YsE-dDo5_X3Tvc7hL0NgbSQ'; 
   late final GenerativeModel model;
