@@ -7,7 +7,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:llama_cpp_dart/llama_cpp_dart.dart';
 
 //post pone yui for now:
-//note to self: find free api-key, 
+//note to self: find free api-key, (lets see if this llama works)
 //then microphone to talk to her
 //then connect to my actual phone
 //find her ACTUAL voice instead of her robotic pone
