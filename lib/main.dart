@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+import 'package:llama_cpp_dart/llama_cpp_dart.dart';
 
 //post pone yui for now:
-//note to self: find free api-key,
+//note to self: find free api-key, 
 //then microphone to talk to her
 //then connect to my actual phone
 //find her ACTUAL voice instead of her robotic pone
@@ -34,12 +37,9 @@ class YuiInterface extends StatefulWidget {
   @override
   State<YuiInterface> createState() => _YuiInterfaceState();
 }
-// CHANGE API KEY SINCE IT WANTS TO CHRAGE:
-// API key is from google ai studio right now
+
 class _YuiInterfaceState extends State<YuiInterface> {
-  final String apiKey = 'AIzaSyCTWzmz3QL6YsE-dDo5_X3Tvc7hL0NgbSQ'; 
-  late final GenerativeModel model;
-  late final ChatSession chat;
+  Llama? _yuiBrain; // Updated class name
   
   final FlutterTts flutterTts = FlutterTts();
   final SpeechToText _speechToText = SpeechToText();
@@ -48,37 +48,54 @@ class _YuiInterfaceState extends State<YuiInterface> {
   List<Map<String, String>> messages = [];
   bool _isListening = false;
   bool _isThinking = false;
+  bool _isModelLoaded = false;
 
   @override
   void initState() {
     super.initState();
-    _initYui();
+    _initYuiLocal();
   }
 
-  void _initYui() async {
-    // 1. Setup Voice
-    await flutterTts.setSharedInstance(true); 
-    await flutterTts.setIosAudioCategory(IosTextToSpeechAudioCategory.playback, [
-      IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
-    ]);
-    await flutterTts.setPitch(1.4); 
+  // FIXED: Logic to ensure the model path is handled correctly
+  Future<String> _copyModelToStorage() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final path = "${directory.path}/yui_brain.gguf";
+    final file = File(path);
 
-    // 2. Setup Ears
-    await _speechToText.initialize();
-
-    // 3. Setup Gemini 2.5 Brain
-    model = GenerativeModel(
-      model: 'gemini-2.5-flash', 
-      apiKey: apiKey,
-      systemInstruction: Content.system(
-        "You are Yui from SAO. Call user 'Papa'. No emojis. Plain text only. Very short replies."
-      ),
-    );
-    chat = model.startChat();
-    setState(() {});
+    if (!await file.exists()) {
+      // Copies from your assets folder to the app's internal storage
+      final data = await rootBundle.load("assets/models/yui_brain.gguf");
+      final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      await file.writeAsBytes(bytes);
+    }
+    return path;
   }
 
-  // Handle Microphone logic
+  void _initYuiLocal() async {
+    try {
+      await _speechToText.initialize();
+      await flutterTts.setSharedInstance(true); 
+
+      final storedModelPath = await _copyModelToStorage();
+      
+      // --- THE FIX STARTS HERE ---
+      // 1. Manually tell the library to skip native logging initialization
+      // This is the "override" that stops it from looking for 'llama_log_set'
+      Llama.libraryPath = null; 
+
+      // 2. Initialize with very specific parameters
+      _yuiBrain = Llama(
+        storedModelPath,
+        verbose: false, // Disables the logger that causes the crash
+      );
+      // --- THE FIX ENDS HERE ---
+
+      setState(() => _isModelLoaded = true);
+    } catch (e) {
+      debugPrint("Yui Error: $e");
+    }
+  }
+
   void _toggleListening() async {
     if (!_isListening) {
       bool available = await _speechToText.initialize();
@@ -89,7 +106,7 @@ class _YuiInterfaceState extends State<YuiInterface> {
             _controller.text = result.recognizedWords;
             if (result.finalResult) {
               _isListening = false;
-              _sendMessage(); // Auto-send when Papa stops talking
+              _sendMessage(); 
             }
           });
         });
@@ -102,7 +119,7 @@ class _YuiInterfaceState extends State<YuiInterface> {
 
   void _sendMessage() async {
     final text = _controller.text;
-    if (text.isEmpty) return;
+    if (text.isEmpty || _yuiBrain == null) return;
     
     setState(() {
       messages.add({"role": "user", "text": text});
@@ -111,19 +128,32 @@ class _YuiInterfaceState extends State<YuiInterface> {
     _controller.clear();
 
     try {
-      await flutterTts.stop(); // Stop Yui if she was already talking
-      final response = await chat.sendMessage(Content.text(text));
-      final yuiReply = response.text ?? "...";
+      await flutterTts.stop();
+
+      // Formulate the Local Prompt
+      final prompt = "User: $text\n\nAssistant (Yui): Always answer as Yui from SAO. Call the user 'Papa'. Be sweet and very brief.";
+      
+      // FIXED: Latest llama_cpp_dart generation syntax
+      _yuiBrain!.setPrompt(prompt);
+      String fullResponse = "";
+      
+      // We generate tokens until the model stops
+      while (true) {
+        var (token, done) = _yuiBrain!.getNext();
+        fullResponse += token;
+        if (done) break;
+        if (fullResponse.length > 200) break; // Safety stop
+      }
 
       setState(() {
-        messages.add({"role": "yui", "text": yuiReply});
+        messages.add({"role": "yui", "text": fullResponse.trim()});
         _isThinking = false;
       });
 
-      await flutterTts.speak(yuiReply);
+      await flutterTts.speak(fullResponse);
     } catch (e) {
       setState(() {
-        messages.add({"role": "yui", "text": "Error: $e"});
+        messages.add({"role": "yui", "text": "Brain Error: $e"});
         _isThinking = false;
       });
     }
@@ -131,15 +161,53 @@ class _YuiInterfaceState extends State<YuiInterface> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isModelLoaded) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF1A1A2E),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Colors.pinkAccent),
+              SizedBox(height: 20),
+              Text("Yui is waking up...", style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: AppBar(title: const Text("Yui MHCP v1.0", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), backgroundColor: Colors.transparent, elevation: 0),
+      appBar: AppBar(
+        title: const Text("Yui MHCP v1.1 (Local)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent, 
+        elevation: 0,
+        centerTitle: true,
+      ),
       body: Stack(
         children: [
-          // Background UI
-          Container(decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF1A1A2E), Color(0xFF16213E)], begin: Alignment.topCenter, end: Alignment.bottomCenter))),
-          Positioned(bottom: 100, right: -20, child: Opacity(opacity: 0.5, child: Image.asset('assets/yui.png', height: 300, errorBuilder: (c, e, s) => const SizedBox()))),
-          
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 100,
+            right: -20,
+            child: Opacity(
+              opacity: 0.5,
+              child: Image.asset(
+                'assets/yui.png',
+                height: 300,
+                errorBuilder: (c, e, s) => const SizedBox(),
+              ),
+            ),
+          ),
           Column(
             children: [
               const SizedBox(height: 100),
@@ -154,19 +222,30 @@ class _YuiInterfaceState extends State<YuiInterface> {
                       child: Container(
                         margin: const EdgeInsets.symmetric(vertical: 8),
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: isYui ? Colors.white.withAlpha(30) : Colors.pinkAccent.withAlpha(50), borderRadius: BorderRadius.circular(15)),
-                        child: Text(messages[i]['text']!, style: const TextStyle(color: Colors.white, fontSize: 16)),
+                        decoration: BoxDecoration(
+                          color: isYui ? Colors.white.withAlpha(30) : Colors.pinkAccent.withAlpha(50),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Text(
+                          messages[i]['text']!,
+                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                        ),
                       ),
                     );
                   },
                 ),
               ),
-              if (_isThinking) const LinearProgressIndicator(backgroundColor: Colors.transparent, color: Colors.pinkAccent),
-              
-              // Input Area with Mic
+              if (_isThinking) 
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: LinearProgressIndicator(backgroundColor: Colors.transparent, color: Colors.pinkAccent),
+                ),
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 30),
-                decoration: BoxDecoration(color: Colors.black.withAlpha(100), borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
+                decoration: BoxDecoration(
+                  color: Colors.black.withAlpha(100),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                ),
                 child: Row(
                   children: [
                     IconButton(
@@ -178,11 +257,18 @@ class _YuiInterfaceState extends State<YuiInterface> {
                       child: TextField(
                         controller: _controller,
                         style: const TextStyle(color: Colors.white),
-                        decoration: const InputDecoration(hintText: "Talk to Yui...", hintStyle: TextStyle(color: Colors.white54), border: InputBorder.none),
+                        decoration: const InputDecoration(
+                          hintText: "Speak to Yui...",
+                          hintStyle: TextStyle(color: Colors.white54),
+                          border: InputBorder.none,
+                        ),
                         onSubmitted: (_) => _sendMessage(),
                       ),
                     ),
-                    IconButton(icon: const Icon(Icons.send, color: Colors.pinkAccent), onPressed: _sendMessage),
+                    IconButton(
+                      icon: const Icon(Icons.send, color: Colors.pinkAccent),
+                      onPressed: _sendMessage,
+                    ),
                   ],
                 ),
               ),
