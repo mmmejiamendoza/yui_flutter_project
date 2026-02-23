@@ -1,10 +1,8 @@
-import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
-import 'package:llama_cpp_dart/llama_cpp_dart.dart';
+import 'package:http/http.dart' as http;
 
 //post pone yui for now:
 //note to self: find free api-key, (lets see if this llama works)
@@ -18,6 +16,7 @@ import 'package:llama_cpp_dart/llama_cpp_dart.dart';
 //make her have a daily status report at the end of the day
 //to auto delete anything unimportant from my command
 //havea 3d model of her to move around (unity maybe?)
+
 void main() => runApp(const YuiApp());
 
 class YuiApp extends StatelessWidget {
@@ -26,7 +25,10 @@ class YuiApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.pinkAccent), useMaterial3: true),
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.pinkAccent),
+        useMaterial3: true,
+      ),
       home: const YuiInterface(),
     );
   }
@@ -39,8 +41,10 @@ class YuiInterface extends StatefulWidget {
 }
 
 class _YuiInterfaceState extends State<YuiInterface> {
-  Llama? _yuiBrain; // Updated class name
-  
+  // Groq API Configuration
+  final String _groqApiKey = "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";
+  final String _model = "llama-3.3-70b-versatile";
+
   final FlutterTts flutterTts = FlutterTts();
   final SpeechToText _speechToText = SpeechToText();
   final TextEditingController _controller = TextEditingController();
@@ -53,46 +57,20 @@ class _YuiInterfaceState extends State<YuiInterface> {
   @override
   void initState() {
     super.initState();
-    _initYuiLocal();
+    _initYui();
   }
 
-  // FIXED: Logic to ensure the model path is handled correctly
-  Future<String> _copyModelToStorage() async {
-    final directory = await getApplicationDocumentsDirectory();
-    final path = "${directory.path}/yui_brain.gguf";
-    final file = File(path);
-
-    if (!await file.exists()) {
-      // Copies from your assets folder to the app's internal storage
-      final data = await rootBundle.load("assets/models/yui_brain.gguf");
-      final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-      await file.writeAsBytes(bytes);
-    }
-    return path;
-  }
-
-  void _initYuiLocal() async {
+  void _initYui() async {
     try {
       await _speechToText.initialize();
       await flutterTts.setSharedInstance(true); 
+      await flutterTts.setPitch(1.4); 
+      await flutterTts.setSpeechRate(0.5);
 
-      final storedModelPath = await _copyModelToStorage();
-      
-      // --- THE FIX STARTS HERE ---
-      // 1. Manually tell the library to skip native logging initialization
-      // This is the "override" that stops it from looking for 'llama_log_set'
-      Llama.libraryPath = null; 
-
-      // 2. Initialize with very specific parameters
-      _yuiBrain = Llama(
-        storedModelPath,
-        verbose: false, // Disables the logger that causes the crash
-      );
-      // --- THE FIX ENDS HERE ---
-
+      // Yui is always "ready" now because her brain is in the cloud!
       setState(() => _isModelLoaded = true);
     } catch (e) {
-      debugPrint("Yui Error: $e");
+      debugPrint("Yui Init Error: $e");
     }
   }
 
@@ -117,9 +95,9 @@ class _YuiInterfaceState extends State<YuiInterface> {
     }
   }
 
-  void _sendMessage() async {
+  Future<void> _sendMessage() async {
     final text = _controller.text;
-    if (text.isEmpty || _yuiBrain == null) return;
+    if (text.isEmpty) return;
     
     setState(() {
       messages.add({"role": "user", "text": text});
@@ -130,30 +108,46 @@ class _YuiInterfaceState extends State<YuiInterface> {
     try {
       await flutterTts.stop();
 
-      // Formulate the Local Prompt
-      final prompt = "User: $text\n\nAssistant (Yui): Always answer as Yui from SAO. Call the user 'Papa'. Be sweet and very brief.";
-      
-      // FIXED: Latest llama_cpp_dart generation syntax
-      _yuiBrain!.setPrompt(prompt);
-      String fullResponse = "";
-      
-      // We generate tokens until the model stops
-      while (true) {
-        var (token, done) = _yuiBrain!.getNext();
-        fullResponse += token;
-        if (done) break;
-        if (fullResponse.length > 200) break; // Safety stop
+      // Calling the Groq API
+      final response = await http.post(
+        Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
+        headers: {
+          'Authorization': 'Bearer $_groqApiKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          "model": _model,
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Yui from Sword Art Online. You are sweet, helpful, and call the user 'Papa'. Keep responses very brief and wholesome."
+            },
+            ...messages.map((m) => {
+              "role": m['role'] == 'yui' ? "assistant" : "user",
+              "content": m['text']
+            }),
+            {"role": "user", "content": text}
+          ],
+          "temperature": 0.7,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        String yuiResponse = data['choices'][0]['message']['content'];
+
+        setState(() {
+          messages.add({"role": "yui", "text": yuiResponse.trim()});
+          _isThinking = false;
+        });
+
+        await flutterTts.speak(yuiResponse);
+      } else {
+        throw Exception("Failed to connect to Yui's brain.");
       }
-
-      setState(() {
-        messages.add({"role": "yui", "text": fullResponse.trim()});
-        _isThinking = false;
-      });
-
-      await flutterTts.speak(fullResponse);
     } catch (e) {
       setState(() {
-        messages.add({"role": "yui", "text": "Brain Error: $e"});
+        messages.add({"role": "yui", "text": "Sorry Papa, I'm having trouble thinking... ($e)"});
         _isThinking = false;
       });
     }
@@ -161,6 +155,7 @@ class _YuiInterfaceState extends State<YuiInterface> {
 
   @override
   Widget build(BuildContext context) {
+    // UI remains identical to your beautiful original design
     if (!_isModelLoaded) {
       return const Scaffold(
         backgroundColor: Color(0xFF1A1A2E),
@@ -180,7 +175,7 @@ class _YuiInterfaceState extends State<YuiInterface> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text("Yui MHCP v1.1 (Local)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text("Yui MHCP v1.2 (Cloud)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent, 
         elevation: 0,
         centerTitle: true,

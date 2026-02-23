@@ -37,7 +37,7 @@ dependencies:
   path_provider: ^2.1.5
   flutter_tts: ^4.2.2 # this is yui voice (hopefully)
   speech_to_text: ^7.0.0 #this is for her to LISTEN? idk
-  llama_cpp_dart: ^0.2.2
+  http: ^1.2.1
 
 dev_dependencies:
   flutter_test:
