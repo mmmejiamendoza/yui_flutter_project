@@ -43,6 +43,8 @@ class YuiInterface extends StatefulWidget {
 class _YuiInterfaceState extends State<YuiInterface> {
   // --- CONFIGURATION ---
   final String _groqApiKey = "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";
+  
+  // Use this for high intelligence, or "llama3-8b-8192" if you encounter 403 errors
   final String _model = "llama-3.3-70b-versatile";
 
   final FlutterTts flutterTts = FlutterTts();
@@ -207,9 +209,16 @@ class _YuiInterfaceState extends State<YuiInterface> {
                         margin: const EdgeInsets.symmetric(vertical: 8),
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: isYui ? Colors.white.withOpacity(0.1) : Colors.pinkAccent.withOpacity(0.2),
+                          // Fixed the opacity errors here
+                          color: isYui 
+                            ? Colors.white.withValues(alpha: 0.1) 
+                            : Colors.pinkAccent.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(15),
-                          border: Border.all(color: isYui ? Colors.white24 : Colors.pinkAccent.withOpacity(0.5)),
+                          border: Border.all(
+                            color: isYui 
+                              ? Colors.white24 
+                              : Colors.pinkAccent.withValues(alpha: 0.5)
+                          ),
                         ),
                         child: Text(
                           messages[i]['text']!,
@@ -228,13 +237,17 @@ class _YuiInterfaceState extends State<YuiInterface> {
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 40),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
+                  // Fixed the opacity error here
+                  color: Colors.black.withValues(alpha: 0.5),
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
                 ),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(_isListening ? Icons.mic : Icons.mic_none, color: _isListening ? Colors.redAccent : Colors.pinkAccent),
+                      icon: Icon(
+                        _isListening ? Icons.mic : Icons.mic_none, 
+                        color: _isListening ? Colors.redAccent : Colors.pinkAccent
+                      ),
                       onPressed: _toggleListening,
                     ),
                     Expanded(
