@@ -41,7 +41,7 @@ class YuiInterface extends StatefulWidget {
 }
 
 class _YuiInterfaceState extends State<YuiInterface> {
-  // Groq API Configuration
+  // --- CONFIGURATION ---
   final String _groqApiKey = "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";
   final String _model = "llama-3.3-70b-versatile";
 
@@ -52,7 +52,7 @@ class _YuiInterfaceState extends State<YuiInterface> {
   List<Map<String, String>> messages = [];
   bool _isListening = false;
   bool _isThinking = false;
-  bool _isModelLoaded = false;
+  bool _isInitialized = false;
 
   @override
   void initState() {
@@ -66,9 +66,7 @@ class _YuiInterfaceState extends State<YuiInterface> {
       await flutterTts.setSharedInstance(true); 
       await flutterTts.setPitch(1.4); 
       await flutterTts.setSpeechRate(0.5);
-
-      // Yui is always "ready" now because her brain is in the cloud!
-      setState(() => _isModelLoaded = true);
+      setState(() => _isInitialized = true);
     } catch (e) {
       debugPrint("Yui Init Error: $e");
     }
@@ -108,7 +106,21 @@ class _YuiInterfaceState extends State<YuiInterface> {
     try {
       await flutterTts.stop();
 
-      // Calling the Groq API
+      // Format history for the API
+      List<Map<String, String>> apiMessages = [
+        {
+          "role": "system",
+          "content": "You are Yui from Sword Art Online. You are sweet and helpful. You MUST call the user 'Papa'. Keep responses brief and wholesome."
+        }
+      ];
+
+      for (var msg in messages) {
+        apiMessages.add({
+          "role": msg['role'] == 'yui' ? "assistant" : "user",
+          "content": msg['text']!
+        });
+      }
+
       final response = await http.post(
         Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
         headers: {
@@ -117,20 +129,10 @@ class _YuiInterfaceState extends State<YuiInterface> {
         },
         body: jsonEncode({
           "model": _model,
-          "messages": [
-            {
-              "role": "system",
-              "content": "You are Yui from Sword Art Online. You are sweet, helpful, and call the user 'Papa'. Keep responses very brief and wholesome."
-            },
-            ...messages.map((m) => {
-              "role": m['role'] == 'yui' ? "assistant" : "user",
-              "content": m['text']
-            }),
-            {"role": "user", "content": text}
-          ],
+          "messages": apiMessages,
           "temperature": 0.7,
         }),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -143,11 +145,11 @@ class _YuiInterfaceState extends State<YuiInterface> {
 
         await flutterTts.speak(yuiResponse);
       } else {
-        throw Exception("Failed to connect to Yui's brain.");
+        throw Exception("Status: ${response.statusCode}");
       }
     } catch (e) {
       setState(() {
-        messages.add({"role": "yui", "text": "Sorry Papa, I'm having trouble thinking... ($e)"});
+        messages.add({"role": "yui", "text": "Sorry Papa, my brain is a bit fuzzy: $e"});
         _isThinking = false;
       });
     }
@@ -155,27 +157,17 @@ class _YuiInterfaceState extends State<YuiInterface> {
 
   @override
   Widget build(BuildContext context) {
-    // UI remains identical to your beautiful original design
-    if (!_isModelLoaded) {
+    if (!_isInitialized) {
       return const Scaffold(
         backgroundColor: Color(0xFF1A1A2E),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(color: Colors.pinkAccent),
-              SizedBox(height: 20),
-              Text("Yui is waking up...", style: TextStyle(color: Colors.white)),
-            ],
-          ),
-        ),
+        body: Center(child: CircularProgressIndicator(color: Colors.pinkAccent)),
       );
     }
 
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text("Yui MHCP v1.2 (Cloud)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text("Yui MHCP", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent, 
         elevation: 0,
         centerTitle: true,
@@ -191,16 +183,13 @@ class _YuiInterfaceState extends State<YuiInterface> {
               ),
             ),
           ),
+          // Background Yui Image
           Positioned(
             bottom: 100,
             right: -20,
             child: Opacity(
-              opacity: 0.5,
-              child: Image.asset(
-                'assets/yui.png',
-                height: 300,
-                errorBuilder: (c, e, s) => const SizedBox(),
-              ),
+              opacity: 0.4,
+              child: Image.asset('assets/yui.png', height: 350, errorBuilder: (c, e, s) => const SizedBox()),
             ),
           ),
           Column(
@@ -218,8 +207,9 @@ class _YuiInterfaceState extends State<YuiInterface> {
                         margin: const EdgeInsets.symmetric(vertical: 8),
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: isYui ? Colors.white.withAlpha(30) : Colors.pinkAccent.withAlpha(50),
+                          color: isYui ? Colors.white.withOpacity(0.1) : Colors.pinkAccent.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(15),
+                          border: Border.all(color: isYui ? Colors.white24 : Colors.pinkAccent.withOpacity(0.5)),
                         ),
                         child: Text(
                           messages[i]['text']!,
@@ -232,20 +222,19 @@ class _YuiInterfaceState extends State<YuiInterface> {
               ),
               if (_isThinking) 
                 const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20),
-                  child: LinearProgressIndicator(backgroundColor: Colors.transparent, color: Colors.pinkAccent),
+                  padding: EdgeInsets.symmetric(horizontal: 40),
+                  child: LinearProgressIndicator(color: Colors.pinkAccent, backgroundColor: Colors.transparent),
                 ),
               Container(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 30),
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 40),
                 decoration: BoxDecoration(
-                  color: Colors.black.withAlpha(100),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
                 ),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(_isListening ? Icons.mic : Icons.mic_none),
-                      color: _isListening ? Colors.redAccent : Colors.pinkAccent,
+                      icon: Icon(_isListening ? Icons.mic : Icons.mic_none, color: _isListening ? Colors.redAccent : Colors.pinkAccent),
                       onPressed: _toggleListening,
                     ),
                     Expanded(
@@ -253,7 +242,7 @@ class _YuiInterfaceState extends State<YuiInterface> {
                         controller: _controller,
                         style: const TextStyle(color: Colors.white),
                         decoration: const InputDecoration(
-                          hintText: "Speak to Yui...",
+                          hintText: "Message Yui...",
                           hintStyle: TextStyle(color: Colors.white54),
                           border: InputBorder.none,
                         ),
