@@ -4,7 +4,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:http/http.dart' as http;
 
 class YuiService {
-  final String _groqApiKey = "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";
+  final String _groqApiKey = "none at the moment";
   final String _model = "llama-3.3-70b-versatile";
 
   final FlutterTts flutterTts = FlutterTts();
